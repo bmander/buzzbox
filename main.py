@@ -56,7 +56,7 @@ def voice(request):
                     voice=CONFIG['voice_settings']['voice_name'], 
                     language=CONFIG['voice_settings']['language'])
             resp.pause(length=CONFIG['success_pause'])
-            resp.play("", digits="9")
+            resp.play("", digits=CONFIG['open_door_digit'])
         else:
             resp.say(CONFIG['messages']['access_denied'],
                     voice=CONFIG['voice_settings']['voice_name'],

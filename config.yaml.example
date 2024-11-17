@@ -1,0 +1,61 @@
+# Voice response settings
+voice_settings:
+  language: en-US
+  voice_name: Google.en-US-Standard-A
+  speech_timeout: auto
+  gather_timeout: 5
+
+# Security settings
+whitelist:
+  - "+12065552323" # the buzzbox number
+  - "+12065559232" # your personal phone number
+
+# Valid NATO phonetic alphabet codes
+valid_codes:
+  - ALPHA
+  - BRAVO
+  - CHARLIE
+  - DELTA
+  - ECHO
+  - FOXTROT
+  - GOLF
+  - HOTEL
+  - INDIA
+  - JULIETT
+  - KILO
+  - LIMA
+  - MIKE
+  - NOVEMBER
+  - OSCAR
+  - PAPA
+  - QUEBEC
+  - ROMEO
+  - SIERRA
+  - TANGO
+  - UNIFORM
+  - VICTOR
+  - WHISKEY
+  - XRAY
+  - YANKEE
+  - ZULU
+
+# Door access codes
+door_codes:
+  - ALPHA BRAVO CHARLIE
+  - BRAVO MIKE ALPHA
+
+# Response messages
+messages:
+  access_granted: Access granted
+  access_denied: Access denied
+  speak_code: Speak the code CLEAR and LOUD
+  try_again: Please try again
+  too_many_attempts: Too many attempts. Goodbye.
+
+# Authentication settings
+max_attempts: 3
+cookie_max_age: 3600  # 1 hour in seconds
+
+# Timing settings
+initial_pause: 3
+success_pause: 0.2

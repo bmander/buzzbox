@@ -3,3 +3,4 @@
   functions-framework==3.*
   twilio==9.3.7
   google-cloud-logging==3.11.3
+  pyyaml==6.0.2

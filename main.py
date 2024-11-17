@@ -1,100 +1,102 @@
-
 import functions_framework
 from twilio.twiml.voice_response import VoiceResponse, Gather
 import google.cloud.logging
 import logging
 from flask import make_response
-
-from markupsafe import escape
 import re
 import os
+import yaml
 
-client = google.cloud.logging.Client()
-client.setup_logging()
+def load_config():
+    """Load configuration from YAML file."""
+    config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
-VALID_CODES = [
-    'ALPHA', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FOXTROT', 'GOLF', 'HOTEL',
-    'INDIA', 'JULIETT', 'KILO', 'LIMA', 'MIKE', 'NOVEMBER', 'OSCAR', 'PAPA',
-    'QUEBEC', 'ROMEO', 'SIERRA', 'TANGO', 'UNIFORM', 'VICTOR', 'WHISKEY',
-    'XRAY', 'YANKEE', 'ZULU'
-]
+# Load configuration
+CONFIG = load_config()
 
-WHITELIST = ["+12069927567", "+12063250546"]
-
-DOORCODES = {("WHISKEY", "TANGO", "FOXTROT"), ("KILO", "LIMA", "MIKE")}
+DOOR_CODES = {tuple(code.upper().split()) for code in CONFIG['door_codes']}
 
 def make_code(words):
     """Remove punctuation, convert to uppercase, and split into words."""
     return tuple(re.sub(r'[^\w\s]', '', words).upper().split())
-
 
 @functions_framework.http
 def voice(request):
     """HTTP Cloud Function.
     Args:
         request (flask.Request): The request object.
-        <https://flask.palletsprojects.com/en/1.1.x/api/#incoming-request-data>
     Returns:
-        The response text, or any set of values that can be turned into a
-        Response object using `make_response`
-        <https://flask.palletsprojects.com/en/1.1.x/api/#flask.make_response>.
+        Response object from Flask's make_response.
     """
-
     # Start our TwiML response
     resp = VoiceResponse()
-
 
     from_number = request.values.get('From')
     logging.info(f"Call from {from_number}")
 
-    if from_number not in WHITELIST:
+    if from_number not in CONFIG['whitelist']:
         logging.info(f"Rejecting call; not on whitelist")
         resp.reject()
         return str(resp)
     
-    resp.pause(length=0.5)
 
     call_sid = request.values.get('CallSid')
-
     attempts = int(request.cookies.get(f'attempts_{call_sid}', 0))
 
     if 'SpeechResult' in request.values:
         transcript = request.values.get('SpeechResult')
         logging.info(f"transcript = {transcript}")
-        
+
         spoken_code = make_code(transcript)
 
-        if spoken_code in DOORCODES:
-            resp.say("Access granted", voice="Google.en-US-Standard-A", language="en-US")
-            resp.pause(length=0.2)
+        if spoken_code in DOOR_CODES:
+            resp.say(CONFIG['messages']['access_granted'], 
+                    voice=CONFIG['voice_settings']['voice_name'], 
+                    language=CONFIG['voice_settings']['language'])
+            resp.pause(length=CONFIG['success_pause'])
             resp.play("", digits="9")
         else:
-            resp.say("Access denied", voice="Google.en-US-Standard-A", language="en-US")
+            resp.say(CONFIG['messages']['access_denied'],
+                    voice=CONFIG['voice_settings']['voice_name'],
+                    language=CONFIG['voice_settings']['language'])
 
             attempts += 1
 
-            if attempts < 3:
-                resp.say("you said " + " ".join(spoken_code), voice="Google.en-US-Standard-A", language="en-US")
-                gather = Gather(input='speech', 
-                                language='en-US',
-                                hints=','.join(VALID_CODES),
-                                timeout=5,
-                                speechTimeout="auto")
-                gather.say("Please try again", voice="Google.en-US-Standard-A", language="en-US")
+            if attempts < CONFIG['max_attempts']:
+                resp.say("you said " + " ".join(spoken_code),
+                        voice=CONFIG['voice_settings']['voice_name'],
+                        language=CONFIG['voice_settings']['language'])
+                gather = Gather(input='speech',
+                              language=CONFIG['voice_settings']['language'],
+                              hints=','.join(CONFIG['valid_codes']),
+                              timeout=CONFIG['voice_settings']['gather_timeout'],
+                              speechTimeout=CONFIG['voice_settings']['speech_timeout'])
+                gather.say(CONFIG['messages']['try_again'],
+                         voice=CONFIG['voice_settings']['voice_name'],
+                         language=CONFIG['voice_settings']['language'])
                 resp.append(gather)
             else:
-                resp.say("Too many attempts. Goodbye.")
+                resp.say(CONFIG['messages']['too_many_attempts'],
+                        voice=CONFIG['voice_settings']['voice_name'],
+                        language=CONFIG['voice_settings']['language'])
     else:
-        gather = Gather(input='speech', 
-                        language='en-US',
-                        hints=','.join(VALID_CODES),
-                        timeout=5,
-                        speechTimeout="auto")
-        gather.say("Speak the code CLEAR and LOUD", voice="Google.en-US-Standard-A", language="en-US")
+        resp.pause(length=CONFIG['initial_pause'])
+        gather = Gather(input='speech',
+                       language=CONFIG['voice_settings']['language'],
+                       hints=','.join(CONFIG['valid_codes']),
+                       timeout=CONFIG['voice_settings']['gather_timeout'],
+                       speechTimeout=CONFIG['voice_settings']['speech_timeout'])
+        gather.say(CONFIG['messages']['speak_code'],
+                  voice=CONFIG['voice_settings']['voice_name'],
+                  language=CONFIG['voice_settings']['language'])
         resp.append(gather)
 
-    response = make_response(str(resp))
+    httpresp = make_response(str(resp))
+    httpresp.set_cookie(f'attempts_{call_sid}',
+                       str(attempts),
+                       max_age=CONFIG['cookie_max_age'],
+                       secure=True)
 
-    response.set_cookie(f'attempts_{call_sid}', str(attempts), max_age=3600, secure=True)
-
-    return response
+    return httpresp
